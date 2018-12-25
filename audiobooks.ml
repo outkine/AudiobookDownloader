@@ -22,23 +22,15 @@ let scrape uri =
   Agent.get uri
   >|= fun resp ->
   let soup = resp |> HTTPResponse.page |> Page.soup in
-  let root_uri =
-    match Soup.select_one audio_tag soup with
-    | Some node -> (
-      match Soup.attribute "src" node with
-      | Some src -> regex ".*/" src
-      | None -> failwith "no src attribute on root tag" )
-    | None -> failwith "root tag does not exist"
-  in
   let paths =
     soup |> Soup.select episode_tag |> Soup.to_list
     |> List.map ~f:(Soup.texts >> List.hd_exn)
   in
-  (root_uri, paths)
+  paths
 
-let fetch dest uri =
+let fetch dest uri root_uri =
   scrape uri
-  >>= fun (root_uri, paths) ->
+  >>= fun paths ->
   paths
   |> List.map ~f:(( ^ ) root_uri >> Agent.get)
   |> List.zip_exn paths
@@ -62,6 +54,8 @@ let () =
   Command.basic
     ~summary:"Downloads all files for an audiobook from audioknigi.club"
     [%map_open
-      let dest = anon ("dest" %: folder) and uri = anon ("URI" %: string) in
-      fun () -> M.run (Agent.init ()) (fetch dest uri) |> ignore]
+      let dest = anon ("dest" %: folder)
+      and uri = anon ("URI" %: string)
+      and root_uri = anon ("download URI" %: string) in
+      fun () -> M.run (Agent.init ()) (fetch dest uri root_uri) |> ignore]
   |> Command.run
