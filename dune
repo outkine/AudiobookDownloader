@@ -1,4 +1,4 @@
 (executable
  (name audiobooks)
- (libraries lwt cohttp-lwt-unix cmdliner core)
+ (libraries core mechaml)
  (preprocess (pps lwt_ppx ppx_jane)))

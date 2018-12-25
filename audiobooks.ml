@@ -1,7 +1,8 @@
 open Core
-open Lwt
-open Cohttp
-open Cohttp_lwt_unix
+open Mechaml
+module M = Agent.Monad
+module HTTPResponse = Agent.HttpResponse
+open M.Infix
 
 (* implementation *)
 
@@ -9,28 +10,41 @@ let ( >> ) f g x = g (f x)
 
 let ( // ) a b = a ^ "/" ^ b
 
-let file_name (chapter, section) = sprintf "0%i0%i.mp3" chapter section
-
-let full_uri root_uri path = Uri.of_string @@ (root_uri // file_name path)
+let regex regex s = Re.Group.get (Re.exec (Re.Posix.compile_pat regex) s) 0
 
 let write_file path data = Out_channel.write_all path ~data
 
-let rec scrape root_uri chapter section =
-  let%lwt resp = Client.head @@ full_uri root_uri (chapter, section) in
-  if resp |> Response.status |> Code.code_of_status = 404 then
-    if section = 1 then Lwt.return [] else scrape root_uri (chapter + 1) 1
-  else
-    let%lwt paths = scrape root_uri chapter (section + 1) in
-    Lwt.return ((chapter, section) :: paths)
+let audio_tag = "#jp_audio_0"
 
-let fetch dest root_uri =
-  let%lwt paths = scrape root_uri 1 1 in
+let episode_tag = ".jp-playlist-item"
+
+let scrape uri =
+  Agent.get uri
+  >|= fun resp ->
+  let soup = resp |> HTTPResponse.page |> Page.soup in
+  let root_uri =
+    match Soup.select_one audio_tag soup with
+    | Some node -> (
+      match Soup.attribute "src" node with
+      | Some src -> regex ".*/" src
+      | None -> failwith "no src attribute on root tag" )
+    | None -> failwith "root tag does not exist"
+  in
+  let paths =
+    soup |> Soup.select episode_tag |> Soup.to_list
+    |> List.map ~f:(Soup.texts >> List.hd_exn)
+  in
+  (root_uri, paths)
+
+let fetch dest uri =
+  scrape uri
+  >>= fun (root_uri, paths) ->
   paths
-  |> List.map ~f:(full_uri root_uri >> Client.get)
+  |> List.map ~f:(( ^ ) root_uri >> Agent.get)
   |> List.zip_exn paths
-  |> Lwt_list.map_p (fun (path, request) ->
-         let%lwt _resp, body = request in
-         Cohttp_lwt.Body.to_string body >|= write_file (dest // file_name path)
+  |> M.List.iter_p (fun (path, req) ->
+         req
+         >|= fun resp -> write_file (dest // path) @@ HTTPResponse.content resp
      )
 
 (* CLI *)
@@ -40,7 +54,6 @@ let folder =
       match Sys.is_directory name with
       | `Yes -> name
       | `No | `Unknown ->
-          print_endline name ;
           eprintf "'%s' is not a folder" name ;
           exit 1 )
 
@@ -50,5 +63,5 @@ let () =
     ~summary:"Downloads all files for an audiobook from audioknigi.club"
     [%map_open
       let dest = anon ("dest" %: folder) and uri = anon ("URI" %: string) in
-      fun () -> Lwt_main.run @@ fetch dest uri |> ignore]
+      fun () -> M.run (Agent.init ()) (fetch dest uri) |> ignore]
   |> Command.run
