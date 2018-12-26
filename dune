@@ -1,4 +1,4 @@
 (executable
  (name audiobooks)
- (libraries core mechaml)
+ (libraries core mechaml atdgen)
  (preprocess (pps lwt_ppx ppx_jane)))
