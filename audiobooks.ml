@@ -6,8 +6,6 @@ open M.Infix
 
 (* implementation *)
 
-let ( >> ) f g x = g (f x)
-
 let ( // ) a b = a ^ "/" ^ b
 
 let fetch dest json_path =
@@ -29,7 +27,7 @@ let folder =
       match Sys.is_directory name with
       | `Yes -> name
       | `No | `Unknown ->
-          eprintf "'%s' is not a folder" name ;
+          eprintf "'%s' is not a folder" name;
           exit 1 )
 
 let file =
@@ -37,7 +35,7 @@ let file =
       match Sys.file_exists name with
       | `Yes -> name
       | `No | `Unknown ->
-          eprintf "'%s' is not a file" name ;
+          eprintf "'%s' is not a file" name;
           exit 1 )
 
 let () =
