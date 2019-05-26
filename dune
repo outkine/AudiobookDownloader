@@ -2,3 +2,23 @@
  (name audiobooks)
  (libraries core mechaml atdgen)
  (preprocess (pps lwt_ppx ppx_jane)))
+
+(alias
+  (name main)
+  (deps audiobooks.bc))
+
+(alias
+  (name atd)
+  (deps audiobook_j.ml audiobook_j.mli audiobook_t.ml audiobook_t.mli))
+
+(rule
+ (targets audiobook_j.ml
+          audiobook_j.mli)
+ (deps    audiobook.atd)
+ (action  (run atdgen -j -j-std %{deps})))
+
+(rule
+ (targets audiobook_t.ml
+          audiobook_t.mli)
+ (deps    audiobook.atd)
+ (action  (run atdgen -t %{deps})))
