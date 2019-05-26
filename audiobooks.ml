@@ -17,6 +17,7 @@ let fetch dest json_path =
   |> M.List.iter_p (fun ((book : Audiobook_t.book), req) ->
          req
          >|= fun resp ->
+         print_endline book.title;
          Out_channel.write_all (dest // book.title)
            ~data:(HTTPResponse.content resp) )
 
